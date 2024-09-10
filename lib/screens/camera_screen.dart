@@ -1,10 +1,7 @@
-import 'dart:math';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:tflite_flutter/tflite_flutter.dart';
-import 'package:image/image.dart' as imglib;
+import 'package:tflite/tflite.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -13,15 +10,13 @@ class CameraScreen extends StatefulWidget {
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
-//input tensors: [Tensor{_tensor: Pointer: address=0x1103d4000, name: inputs_0, type: float32, shape: [1, 640, 640, 3], data: 4915200}]
-// output tensors: [Tensor{_tensor: Pointer: address=0x11036ebd0, name: Identity, type: float32, shape: [1, 84, 8400], data: 2822400}]
 class _CameraScreenState extends State<CameraScreen> {
   late List<CameraDescription> _cameras;
   late Future<void> _initializeControllerFuture;
   late CameraController controller;
   late List<String> labels;
-  late Interpreter interpreter;
-  final output = List<num>.filled(1 * 84 * 8400, 0).reshape([1, 84, 8400]);
+  final String _model = "yolo";
+  List<dynamic> recognitions = [];
 
   @override
   void initState() {
@@ -30,171 +25,86 @@ class _CameraScreenState extends State<CameraScreen> {
     loadModel();
   }
 
-  List<int> getMatrixShape(List<dynamic> matrix) {
-    List<int> shape = [];
-    dynamic currentLevel = matrix;
-
-    while (currentLevel is List) {
-      shape.add(currentLevel.length);
-      currentLevel = currentLevel.isNotEmpty ? currentLevel[0] : null;
+  Future loadModel() async {
+    Tflite.close();
+    try {
+      String res;
+      switch (_model) {
+        case "yolo":
+          res = (await Tflite.loadModel(
+            model: "assets/models/yolov2_tiny.tflite",
+            labels: "assets/models/yolov2_tiny.txt",
+            // useGpuDelegate: true,
+          ))!;
+          break;
+        case "ssd":
+          res = (await Tflite.loadModel(
+            model: "assets/models/ssd_mobilenet.tflite",
+            labels: "assets/models/ssd_mobilenet.txt",
+            // useGpuDelegate: true,
+          ))!;
+          break;
+        case "deeplab":
+          res = (await Tflite.loadModel(
+            model: "assets/models/deeplabv3_257_mv_gpu.tflite",
+            labels: "assets/models/deeplabv3_257_mv_gpu.txt",
+            // useGpuDelegate: true,
+          ))!;
+          break;
+        case "posenet":
+          res = (await Tflite.loadModel(
+            model:
+                "assets/models/posenet_mv1_075_float_from_checkpoints.tflite",
+            // useGpuDelegate: true,
+          ))!;
+          break;
+        default:
+          res = (await Tflite.loadModel(
+            model: "assets/models/mobilenet_v1_1.0_224.tflite",
+            labels: "assets/models/mobilenet_v1_1.0_224.txt",
+            // useGpuDelegate: true,
+          ))!;
+      }
+      print(res);
+    } on PlatformException {
+      print('Failed to load model.');
     }
-
-    return shape;
   }
 
   Future<void> initializeCameras() async {
     _cameras = await availableCameras();
-    controller = CameraController(_cameras[0], ResolutionPreset.low);
+    controller = CameraController(_cameras[0], ResolutionPreset.medium);
     await controller.initialize();
-    bool show = true;
-    controller.startImageStream((CameraImage image) {
-      if (show) {
-        final output =
-            List<num>.filled(1 * 84 * 8400, 0).reshape([1, 84, 8400]);
-        final input = _preProcess(imageFromCameraImage(image)!);
-        int predictionTimeStart = DateTime.now().millisecondsSinceEpoch;
-        interpreter.run([input], output);
-        int predictionTime =
-            DateTime.now().millisecondsSinceEpoch - predictionTimeStart;
-        print('Prediction time: $predictionTime ms');
-        print(output[0].length);
-// Assuming the output is a 2D array with shape [1, num_labels]
-        // List<num> probabilities = output[0];
-        // int maxIndex = probabilities
-        //     .indexWhere((prob) => prob == probabilities.reduce(max));
-        // String label =
-        //     labels[maxIndex]; // 'labels' should be a predefined list of labels
-
-        // print('Label: $label, Probability: ${probabilities[maxIndex]}');
-        show = false;
+    bool flag = true;
+    controller.startImageStream((CameraImage img) async {
+      if (flag) {
+        List<dynamic>? recognitions = await Tflite.detectObjectOnFrame(
+            bytesList: img.planes.map((plane) {
+              return plane.bytes;
+            }).toList(), // required
+            model: "YOLO",
+            imageHeight: img.height,
+            imageWidth: img.width,
+            imageMean: 0, // defaults to 127.5
+            imageStd: 255.0, // defaults to 127.5
+            threshold: 0.3, // defaults to 0.1
+            numResultsPerClass: 2, // defaults to 5
+            blockSize: 32, // defaults to 32
+            numBoxesPerBlock: 5, // defaults to 5
+            asynch: true // defaults to true
+            );
+        var highestConfidence = recognitions!.reduce((curr, next) =>
+            curr['confidenceInClass'] > next['confidenceInClass']
+                ? curr
+                : next);
+        print(recognitions);
+        print(highestConfidence);
+        setState(() {
+          this.recognitions = [highestConfidence];
+        });
+        // flag = false;
       }
-
-      // interpreter.run(input, output);
-      // print(output);
     });
-  }
-
-  Map<String, dynamic> getHighestProbPrediction(List<num> output) {
-    const int numBoxes = 8400;
-    const int numClasses = 79;
-    double highestConfidence = 0.0;
-    Map<String, dynamic> highestProbPrediction = {};
-
-    for (int i = 0; i < numBoxes; i++) {
-      int offset = i * 84;
-      double confidence = output[offset + 4].toDouble();
-
-      if (confidence > highestConfidence) {
-        highestConfidence = confidence;
-        double xMin = output[offset].toDouble();
-        double yMin = output[offset + 1].toDouble();
-        double xMax = output[offset + 2].toDouble();
-        double yMax = output[offset + 3].toDouble();
-
-        List<double> classScores = output
-            .sublist(offset + 5, offset + 5 + numClasses)
-            .map((e) => e.toDouble())
-            .toList();
-        int classIndex =
-            classScores.indexWhere((score) => score == classScores.reduce(max));
-        double classScore = classScores[classIndex];
-
-        highestProbPrediction = {
-          'boundingBox': [xMin, yMin, xMax, yMax],
-          'confidence': confidence,
-          'classIndex': classIndex,
-          'classScore': classScore,
-        };
-      }
-    }
-
-    return highestProbPrediction;
-  }
-
-  // CameraImage BGRA8888 -> PNG
-// Color
-  imglib.Image imageFromBGRA8888(CameraImage image) {
-    return imglib.Image.fromBytes(
-      width: image.width,
-      height: image.height,
-      bytes: image.planes[0].bytes.buffer,
-      order: imglib.ChannelOrder.bgra,
-    );
-  }
-
-// CameraImage YUV420_888 -> PNG -> Image (compresion:0, filter: none)
-// Black
-  imglib.Image imageFromYUV420(CameraImage image) {
-    final uvRowStride = image.planes[1].bytesPerRow;
-    final uvPixelStride = image.planes[1].bytesPerPixel ?? 0;
-    final img = imglib.Image(width: image.width, height: image.height);
-    for (final p in img) {
-      final x = p.x;
-      final y = p.y;
-      final uvIndex =
-          uvPixelStride * (x / 2).floor() + uvRowStride * (y / 2).floor();
-      final index = y * uvRowStride +
-          x; // Use the row stride instead of the image width as some devices pad the image data, and in those cases the image width != bytesPerRow. Using width will give you a distored image.
-      final yp = image.planes[0].bytes[index];
-      final up = image.planes[1].bytes[uvIndex];
-      final vp = image.planes[2].bytes[uvIndex];
-      p.r = (yp + vp * 1436 / 1024 - 179).round().clamp(0, 255).toInt();
-      p.g = (yp - up * 46549 / 131072 + 44 - vp * 93604 / 131072 + 91)
-          .round()
-          .clamp(0, 255)
-          .toInt();
-      p.b = (yp + up * 1814 / 1024 - 227).round().clamp(0, 255).toInt();
-    }
-
-    return img;
-  }
-
-  imglib.Image? imageFromCameraImage(CameraImage image) {
-    try {
-      imglib.Image img;
-      switch (image.format.group) {
-        case ImageFormatGroup.yuv420:
-          img = imageFromYUV420(image);
-          break;
-        case ImageFormatGroup.bgra8888:
-          img = imageFromBGRA8888(image);
-          break;
-        default:
-          return null;
-      }
-      return img;
-    } catch (e) {
-      //print(">>>>>>>>>>>> ERROR:" + e.toString());
-    }
-    return null;
-  }
-
-  // yolov8 requires input normalized between 0 and 1
-  List<List<List<num>>> convertImageToMatrix(imglib.Image image) {
-    return List.generate(
-      image.height,
-      (y) => List.generate(
-        image.width,
-        (x) {
-          final pixel = image.getPixel(x, y);
-          return [pixel.rNormalized, pixel.gNormalized, pixel.bNormalized];
-        },
-      ),
-    );
-  }
-
-  List<List<List<num>>> _preProcess(imglib.Image image) {
-    final imgResized = imglib.copyResize(image, width: 640, height: 640);
-
-    return convertImageToMatrix(imgResized);
-  }
-
-  loadModel() async {
-    interpreter =
-        await Interpreter.fromAsset('assets/models/yolov8n_float16.tflite');
-    print("input tensors: ${interpreter.getInputTensors()}");
-    print("output tensors: ${interpreter.getOutputTensors()}");
-    labels = await _loadLabels('assets/models/labels.txt');
   }
 
   Future<List<String>> _loadLabels(String labelsPath) async {
@@ -215,15 +125,47 @@ class _CameraScreenState extends State<CameraScreen> {
         future: _initializeControllerFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.done) {
-            return SizedBox(
-              width: MediaQuery.of(context).size.width,
-              height: MediaQuery.of(context).size.height,
-              child: FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                    width: 100, // the actual width is not important here
-                    child: CameraPreview(controller)),
-              ),
+            return Stack(
+              children: [
+                SizedBox(
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.height,
+                  child: FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                        width: 100, // the actual width is not important here
+                        child: CameraPreview(controller)),
+                  ),
+                ),
+                ...recognitions.map((recog) {
+                  return Positioned(
+                    left:
+                        recog['rect']['x'] * MediaQuery.of(context).size.width,
+                    top:
+                        recog['rect']['y'] * MediaQuery.of(context).size.height,
+                    width:
+                        recog['rect']['w'] * MediaQuery.of(context).size.width,
+                    height:
+                        recog['rect']['h'] * MediaQuery.of(context).size.height,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.red,
+                          width: 2,
+                        ),
+                      ),
+                      child: Text(
+                        "${recog['detectedClass']} ${(recog['confidenceInClass'] * 100).toStringAsFixed(0)}%",
+                        style: TextStyle(
+                          background: Paint()..color = Colors.red,
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ],
             );
           } else if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
