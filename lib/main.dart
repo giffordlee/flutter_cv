@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_cv/screens/camera_screen.dart';
+import 'package:flutter_cv/screens/camera_screen_tflite.dart';
 
 void main() {
   runApp(const MyApp());
@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
       ),
-      home: CameraScreen(),
+      home: CameraScreenTFLite(),
     );
   }
 }

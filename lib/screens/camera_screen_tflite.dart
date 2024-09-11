@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tflite/tflite.dart';
 
-class CameraScreen extends StatefulWidget {
-  const CameraScreen({super.key});
+class CameraScreenTFLite extends StatefulWidget {
+  const CameraScreenTFLite({super.key});
 
   @override
-  State<CameraScreen> createState() => _CameraScreenState();
+  State<CameraScreenTFLite> createState() => _CameraScreenTFLiteState();
 }
 
-class _CameraScreenState extends State<CameraScreen> {
+class _CameraScreenTFLiteState extends State<CameraScreenTFLite> {
   late List<CameraDescription> _cameras;
   late Future<void> _initializeControllerFuture;
   late CameraController controller;

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_cv/screens/camera_screen.dart';
+import 'package:flutter_cv/screens/camera_screen_tflite.dart';
 
 class SurveyQuestions extends StatefulWidget {
   const SurveyQuestions({super.key});
@@ -122,7 +122,7 @@ class _SurveyQuestionsState extends State<SurveyQuestions> {
                           Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => CameraScreen(),
+                                builder: (context) => CameraScreenTFLite(),
                               ));
                         }
                       }
