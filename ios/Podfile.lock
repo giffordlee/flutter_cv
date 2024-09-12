@@ -2,6 +2,17 @@ PODS:
   - camera_avfoundation (0.0.1):
     - Flutter
   - Flutter (1.0.0)
+  - LibTorch (1.13.0.1):
+    - LibTorch/Core (= 1.13.0.1)
+  - LibTorch/Core (1.13.0.1):
+    - LibTorch/Torch
+  - LibTorch/Torch (1.13.0.1)
+  - path_provider_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - pytorch_lite (0.0.1):
+    - Flutter
+    - LibTorch (~> 1.13.0.1)
   - TensorFlowLiteC (2.2.0)
   - tflite (1.1.2):
     - Flutter
@@ -10,11 +21,14 @@ PODS:
 DEPENDENCIES:
   - camera_avfoundation (from `.symlinks/plugins/camera_avfoundation/ios`)
   - Flutter (from `Flutter`)
+  - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
+  - pytorch_lite (from `.symlinks/plugins/pytorch_lite/ios`)
   - TensorFlowLiteC (= 2.2.0)
   - tflite (from `.symlinks/plugins/tflite/ios`)
 
 SPEC REPOS:
   trunk:
+    - LibTorch
     - TensorFlowLiteC
 
 EXTERNAL SOURCES:
@@ -22,12 +36,19 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/camera_avfoundation/ios"
   Flutter:
     :path: Flutter
+  path_provider_foundation:
+    :path: ".symlinks/plugins/path_provider_foundation/darwin"
+  pytorch_lite:
+    :path: ".symlinks/plugins/pytorch_lite/ios"
   tflite:
     :path: ".symlinks/plugins/tflite/ios"
 
 SPEC CHECKSUMS:
   camera_avfoundation: dd002b0330f4981e1bbcb46ae9b62829237459a4
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  LibTorch: 8abfa5fc9d146230b31065a29b0502e1104956ea
+  path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
+  pytorch_lite: 918b8dcad2cc52b17e24297a2e2b4c05fd921df2
   TensorFlowLiteC: b3ab9e867b0b71052ca102a32a786555b330b02e
   tflite: 7acd11db0915e2d90ab90474413068568eb605f0
 

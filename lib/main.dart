@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_cv/screens/camera_screen_pytorch.dart';
 import 'package:flutter_cv/screens/camera_screen_tflite.dart';
 
 void main() {
@@ -15,7 +16,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
       ),
-      home: CameraScreenTFLite(),
+      home: CameraScreenPytorch(),
     );
   }
 }
